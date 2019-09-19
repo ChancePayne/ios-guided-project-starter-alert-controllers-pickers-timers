@@ -21,28 +21,73 @@ class CountdownViewController: UIViewController {
     
     lazy private var countdownPickerData: [[String]] = {
         // Create string arrays using numbers wrapped in string values: ["0", "1", ... "60"]
-        let minutes: [String] = Array(0...60).map { String($0) }
+        let hours: [String] = Array(0...23).map { String($0) }
+        let minutes: [String] = Array(0...59).map { String($0) }
         let seconds: [String] = Array(0...59).map { String($0) }
         
         // "min" and "sec" are the unit labels
-        let data: [[String]] = [minutes, ["min"], seconds, ["sec"]]
+        let data: [[String]] = [hours, ["hrs"], minutes, ["min"], seconds, ["sec"]]
         return data
     }()
+    
+    var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SS"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }
+    
+    private var duration: TimeInterval {
+        let hourString = countdownPicker.selectedRow(inComponent: 0)
+        let minuteString = countdownPicker.selectedRow(inComponent: 2)
+        let secondString = countdownPicker.selectedRow(inComponent: 4)
+        
+        let hours = Int(hourString)
+        let minutes = Int(minuteString)
+        let seconds = Int(secondString)
+        
+        let totalSeconds = TimeInterval((hours * 60 + minutes) * 60 + seconds)
+        return totalSeconds
+    }
+    
+    private let countdown = Countdown()
     
     // MARK: - View Lifecycle
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        countdownPicker.dataSource = self
+        countdownPicker.delegate = self
+        
+        // set default duration to 00:01:30
+        countdownPicker.selectRow(1, inComponent: 2, animated: false)
+        countdownPicker.selectRow(30, inComponent: 4, animated: false)
+        
+        countdown.delegate = self
+        countdown.duration = duration
+        
+        timeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: timeLabel.font.pointSize, weight: .medium)
+        
+        startButton.layer.cornerRadius = 4.0
+        resetButton.layer.cornerRadius = 4.0
     }
     
     // MARK: - Actions
     
     @IBAction func startButtonTapped(_ sender: UIButton) {
-        showAlert()
+        // let timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false, block: timerFinished(timer:))
+        
+        countdown.start()
     }
     
+    /*private func timerFinished(timer: Timer) {
+        showAlert()
+    }*/
+    
     @IBAction func resetButtonTapped(_ sender: UIButton) {
-        
+        countdown.reset()
+        updateViews()
     }
     
     // MARK: - Private
@@ -54,37 +99,58 @@ class CountdownViewController: UIViewController {
     }
     
     private func updateViews() {
-        
+        switch countdown.state {
+        case .started:
+            startButton.isEnabled = false
+            timeLabel.text = string(from: countdown.timeRemaining)
+        case .finished:
+            startButton.isEnabled = true
+            timeLabel.text = string(from: 0)
+        case .reset:
+            startButton.isEnabled = true
+            timeLabel.text = string(from: countdown.duration)
+        }
     }
     
     private func string(from duration: TimeInterval) -> String {
-        #warning("return a string value derived from the time interval passed in")
-        return ""
+        let date = Date(timeIntervalSinceReferenceDate: duration)
+        return dateFormatter.string(from: date)
     }
 }
 
 extension CountdownViewController: CountdownDelegate {
     func countdownDidUpdate(timeRemaining: TimeInterval) {
-        
+        updateViews()
     }
     
     func countdownDidFinish() {
-        
+        updateViews()
+        showAlert()
     }
 }
 
 extension CountdownViewController: UIPickerViewDataSource {
     func numberOfComponents(in pickerView: UIPickerView) -> Int {
-        #warning("Change this to return the number of components for the picker view")
-        return 0
+        return countdownPickerData.count
     }
     
     func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
-        #warning("Change this to return the number of rows per component in the picker view")
-        return 0
+        return countdownPickerData[component].count
     }
 }
 
 extension CountdownViewController: UIPickerViewDelegate {
+    func pickerView(_ pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String? {
+//        return "Minute"
+        return countdownPickerData[component][row]
+    }
     
+    func pickerView(_ pickerView: UIPickerView, widthForComponent component: Int) -> CGFloat {
+        return 50
+    }
+    
+    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+        countdown.duration = duration
+        updateViews()
+    }
 }
